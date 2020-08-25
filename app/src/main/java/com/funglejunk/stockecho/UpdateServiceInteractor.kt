@@ -3,6 +3,7 @@ package com.funglejunk.stockecho
 import arrow.core.*
 import arrow.core.extensions.either.applicative.applicative
 import arrow.core.extensions.fx
+import arrow.core.extensions.list.applicative.map
 import arrow.core.extensions.list.traverse.sequence
 import arrow.core.extensions.list.traverse.traverse
 import arrow.core.extensions.listk.monad.map
@@ -20,11 +21,11 @@ typealias HistoryResponseIO = IO<Either<Throwable, Map<String, History>>>
 @UnsafeSerializationApi
 class UpdateServiceInteractor {
 
-    private val prefs = Prefs()
+    private val prefs = MockPrefs()
 
     fun calculatePerformance(): IO<Either<Throwable, IO<Option<Report>>>> =
         IO.fx {
-            val isins = prefs.getAllAllocations().keys.toTypedArray()
+            val isins = prefs.getAllAllocations().bind().map { it.isin }.toTypedArray()
             val today = !effect {
                 fetchDataForToday(*isins)
             }.bind()
@@ -54,7 +55,7 @@ class UpdateServiceInteractor {
     ): IO<Option<Report>> =
         currentData.map { (isin, history) ->
             IO.fx {
-                !(Prefs().getAllocation(isin)).map { allocationOption ->
+                !(prefs.getAllocation(isin)).map { allocationOption ->
                     Option.fx {
                         val allocation = !allocationOption
                         val nrOfShares = !allocation.nrOfShares.toOption()
