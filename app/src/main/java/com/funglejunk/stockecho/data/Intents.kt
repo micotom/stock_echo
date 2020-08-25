@@ -1,4 +1,4 @@
-package com.funglejunk.stockecho
+package com.funglejunk.stockecho.data
 
 const val ACTION_REQUEST_UPDATE = "com.funglejunk.stockecho.REQUEST_UPDATE"
 const val ACTION_REPORT_READY = "com.funglejunk.stockecho.REPORT_READY"

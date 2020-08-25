@@ -1,4 +1,4 @@
-package com.funglejunk.stockecho
+package com.funglejunk.stockecho.view
 
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
@@ -8,6 +8,8 @@ import android.content.Context
 import android.content.Intent
 import android.view.View
 import android.widget.RemoteViews
+import com.funglejunk.stockecho.*
+import com.funglejunk.stockecho.data.*
 import timber.log.Timber
 
 class StockEchoWidget : AppWidgetProvider() {

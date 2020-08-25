@@ -1,4 +1,4 @@
-package com.funglejunk.stockecho
+package com.funglejunk.stockecho.model
 
 import android.content.Context
 import android.content.Intent
@@ -7,6 +7,7 @@ import arrow.core.NonEmptyList
 import arrow.core.Validated
 import arrow.fx.IO
 import arrow.fx.extensions.fx
+import com.funglejunk.stockecho.data.*
 import kotlinx.serialization.UnsafeSerializationApi
 import timber.log.Timber
 

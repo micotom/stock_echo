@@ -1,8 +1,9 @@
-package com.funglejunk.stockecho
+package com.funglejunk.stockecho.repo
 
 import arrow.core.Either
 import arrow.core.extensions.either.monad.flatten
 import arrow.fx.IO
+import com.funglejunk.stockecho.data.History
 import com.github.kittinunf.fuel.core.FuelError
 import com.github.kittinunf.fuel.core.Parameters
 import com.github.kittinunf.fuel.coroutines.awaitStringResult
@@ -14,7 +15,7 @@ import timber.log.Timber
 import java.time.LocalDate
 
 @UnsafeSerializationApi
-object Repo {
+object RemoteRepo {
 
     private const val BASE_URL = "https://api.boerse-frankfurt.de/data"
     private const val PRICE_HISTORY_EP = "/price_history"

@@ -1,4 +1,4 @@
-package com.funglejunk.stockecho
+package com.funglejunk.stockecho.repo
 
 import arrow.core.Option
 import arrow.core.toOption
@@ -26,7 +26,6 @@ class MockPrefs : Prefs {
         Allocation("IE00BK5BR733",13.0, BigDecimal.valueOf(45.99))
     )
 
-    // TODO use Option
     override fun getAllocation(isin: String): IO<Option<Allocation>> =
         IO { mockAllocations.find { it.isin == isin }.toOption() }
 

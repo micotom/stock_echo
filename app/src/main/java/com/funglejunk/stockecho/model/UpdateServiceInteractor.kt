@@ -1,4 +1,4 @@
-package com.funglejunk.stockecho
+package com.funglejunk.stockecho.model
 
 import arrow.core.*
 import arrow.core.extensions.either.applicative.applicative
@@ -11,6 +11,12 @@ import arrow.fx.IO
 import arrow.fx.extensions.fx
 import arrow.fx.extensions.io.applicative.applicative
 import arrow.fx.fix
+import com.funglejunk.stockecho.data.History
+import com.funglejunk.stockecho.data.Report
+import com.funglejunk.stockecho.getCurrentTradingDay
+import com.funglejunk.stockecho.repo.MockPrefs
+import com.funglejunk.stockecho.repo.RemoteRepo
+import com.funglejunk.stockecho.verifySEOpen
 import kotlinx.serialization.UnsafeSerializationApi
 import java.time.LocalDate
 
@@ -49,7 +55,7 @@ class UpdateServiceInteractor {
 
     private fun reqFromRepo(date: LocalDate, vararg isins: String): HistoryResponseIO =
         isins.toList().traverse(IO.applicative()) {
-            Repo.getHistory(it, date, date)
+            RemoteRepo.getHistory(it, date, date)
         }.fix().map {
             it.sequence(Either.applicative()).fix().map {
                 it.map { history ->

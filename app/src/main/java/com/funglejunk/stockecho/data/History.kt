@@ -1,4 +1,4 @@
-package com.funglejunk.stockecho
+package com.funglejunk.stockecho.data
 
 
 import kotlinx.serialization.SerialName

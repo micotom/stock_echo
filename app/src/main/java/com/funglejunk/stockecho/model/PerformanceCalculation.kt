@@ -1,4 +1,4 @@
-package com.funglejunk.stockecho
+package com.funglejunk.stockecho.model
 
 import arrow.core.NonEmptyList
 import arrow.core.Option
@@ -6,6 +6,10 @@ import arrow.core.Validated
 import arrow.core.extensions.list.applicative.map
 import arrow.fx.IO
 import arrow.fx.extensions.fx
+import com.funglejunk.stockecho.data.History
+import com.funglejunk.stockecho.data.Report
+import com.funglejunk.stockecho.repo.Prefs
+import com.funglejunk.stockecho.rounded
 import java.math.BigDecimal
 
 class PerformanceCalculation {

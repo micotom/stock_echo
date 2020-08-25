@@ -1,7 +1,8 @@
-package com.funglejunk.stockecho
+package com.funglejunk.stockecho.view
 
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import com.funglejunk.stockecho.R
 
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

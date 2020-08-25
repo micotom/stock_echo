@@ -6,6 +6,10 @@ import arrow.core.Validated
 import arrow.core.extensions.nonemptylist.foldable.get
 import arrow.core.toOption
 import arrow.fx.IO
+import com.funglejunk.stockecho.data.History
+import com.funglejunk.stockecho.model.PerformanceCalculation
+import com.funglejunk.stockecho.repo.Allocation
+import com.funglejunk.stockecho.repo.Prefs
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
