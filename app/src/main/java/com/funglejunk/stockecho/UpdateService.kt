@@ -3,6 +3,8 @@ package com.funglejunk.stockecho
 import android.content.Context
 import android.content.Intent
 import androidx.core.app.JobIntentService
+import arrow.core.NonEmptyList
+import arrow.core.Validated
 import arrow.fx.IO
 import arrow.fx.extensions.fx
 import kotlinx.serialization.UnsafeSerializationApi
@@ -17,6 +19,7 @@ class UpdateService : JobIntentService() {
                 `package` = applicationContext.packageName
                 putExtra(EXTRA_REPORT_KEY, report)
             }
+
         fun getErrorIntent(applicationContext: Context, message: String): Intent =
             Intent(ACTION_ERROR).apply {
                 `package` = applicationContext.packageName
@@ -28,23 +31,27 @@ class UpdateService : JobIntentService() {
 
     override fun onHandleWork(intent: Intent) {
         IO.fx {
-            val dataFetch = !effect {
+            !effect {
                 interactor.calculatePerformance()
             }.bind()
-            dataFetch.fold(
-                { onError(it) },
-                { calculation ->
-                    !effect {
-                        calculation
-                    }.bind().map {
-                        it.fold(
-                            { onError(Throwable("Calculation failed")) },
-                            { report -> onSuccess(report) }
-                        )
+        }.attempt().unsafeRunSync().fold(
+            { onError(it) },
+            { eitherValidatedReport ->
+                eitherValidatedReport.fold(
+                    { error ->
+                        onError(error)
+                    },
+                    { validatedReport ->
+                        when (validatedReport) {
+                            is Validated.Invalid -> onError(
+                                Throwable(validatedReport.e.asSimpleThrowable())
+                            )
+                            is Validated.Valid -> onSuccess(validatedReport.a)
+                        }
                     }
-                }
-            )
-        }.unsafeRunSync()
+                )
+            }
+        )
     }
 
     private fun onError(t: Throwable) {
@@ -55,5 +62,9 @@ class UpdateService : JobIntentService() {
     private fun onSuccess(report: Report) {
         sendBroadcast(getDataReportIntent(applicationContext, report))
     }
+
+    private fun <T: Any> NonEmptyList<T>.asSimpleThrowable() = Throwable(
+        map { it::class.java.simpleName }.toList().joinToString()
+    )
 
 }

@@ -49,6 +49,7 @@ class StockEchoWidget : AppWidgetProvider() {
                     views.setErrorViewsVisible()
                     intent.getStringExtra(EXTRA_ERROR_MSG)?.let { message ->
                         views.setTextViewText(R.id.error_text, message)
+                        invalidateViews(context, views)
                     }
                 }
                 else -> Timber.w("Received unresolvable intent with action: ${intent?.action}")
