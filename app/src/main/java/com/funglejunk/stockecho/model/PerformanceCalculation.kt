@@ -82,7 +82,7 @@ class PerformanceCalculation {
             }.map {
                 val (today, total) = it
                 Report(
-                    today.first.rounded(), // TODO rounding error not properly forwarded in INFINITY
+                    today.first.rounded(),
                     today.second.rounded(),
                     total.first.rounded(),
                     total.second.rounded()
