@@ -4,47 +4,70 @@ import arrow.core.NonEmptyList
 import arrow.core.Option
 import arrow.core.Validated
 import arrow.core.extensions.list.applicative.map
-import arrow.fx.IO
-import arrow.fx.extensions.fx
+import com.funglejunk.stockecho.bd
+import com.funglejunk.stockecho.data.Euros
 import com.funglejunk.stockecho.data.History
 import com.funglejunk.stockecho.data.Report
-import com.funglejunk.stockecho.repo.Prefs
+import com.funglejunk.stockecho.isPercentFrom
+import com.funglejunk.stockecho.repo.Allocation
 import com.funglejunk.stockecho.rounded
 import java.math.BigDecimal
 
 class PerformanceCalculation {
 
     sealed class CalculationError {
+        object EmptyPrefsData : CalculationError()
         object IsinNotFoundInRemoteData : CalculationError()
         object ZeroShares : CalculationError()
         object TooManyCloseValues : CalculationError()
         object NoRemoteCloseValue : CalculationError()
+        object ZeroRemoteCloseValue : CalculationError()
     }
 
     private data class ValueValidationInfo(
-        val nrOfShares: Validated<CalculationError, Double>,
-        val todayClose: Validated<CalculationError, Double>,
-        val yesterdayClose: Validated<CalculationError, Double>,
-        val onBuy: BigDecimal
+        val nrOfShares: Validated<CalculationError, BigDecimal>,
+        val todayClose: Validated<CalculationError, BigDecimal>,
+        val yesterdayClose: Validated<CalculationError, BigDecimal>,
+        val onBuy: Euros
     )
 
     private data class ValueInfo(
-        val nrOfShares: Double,
-        val todayClose: Double,
-        val yesterdayClose: Double,
-        val onBuy: BigDecimal
+        val nrOfShares: BigDecimal,
+        val todayClose: Euros,
+        val yesterdayClose: Euros,
+        val onBuy: Euros
     )
 
+    private fun createReport(from: List<ValueInfo>): Report {
+        val todayValue = from.fold(BigDecimal(0.0)) { acc, new ->
+            acc + (new.nrOfShares * new.todayClose.amount)
+        }
+        val yesterdayValue = from.fold(BigDecimal(0.0)) { acc, new ->
+            acc + (new.nrOfShares * new.yesterdayClose.amount)
+        }
+        val onBuyValue = from.fold(BigDecimal(0.0)) { acc, new ->
+            acc + (new.nrOfShares * new.onBuy.amount)
+        }
+        val perfToday = todayValue.isPercentFrom(yesterdayValue) - 100.0
+        val perfTotal = todayValue.isPercentFrom(onBuyValue) - 100.0
+        val absToday = todayValue - yesterdayValue
+        val absTotal = todayValue - onBuyValue
+        return Report(
+            perfToday.rounded(),
+            absToday.rounded(),
+            perfTotal.rounded(),
+            absTotal.rounded()
+        )
+    }
+
     fun calculate(
-        prefs: Prefs,
+        allocations: List<Allocation>,
         currentData: Map<String, History>,
         pastData: Map<String, History>
-    ): IO<Validated<NonEmptyList<CalculationError>, Report>> =
-        IO.fx {
-
-            val allocations = prefs.getAllAllocations().bind()
-
-            val info = allocations.map { allocation ->
+    ): Validated<NonEmptyList<CalculationError>, Report> =
+        when (allocations.isEmpty()) {
+            true -> Validated.Invalid(NonEmptyList.of(CalculationError.EmptyPrefsData))
+            false -> allocations.map { allocation ->
                 val nrOfSharesValidated = allocation.nrOfShares.asValidatedDivisor()
                 val todayValidated = currentData.getValueAsValidated(allocation.isin).closeValue
                 val yesterdayValidated =
@@ -54,47 +77,17 @@ class PerformanceCalculation {
                     nrOfSharesValidated,
                     todayValidated,
                     yesterdayValidated,
-                    onBuy
+                    Euros(onBuy)
                 ).validate()
-            }.wrap()
-
-            val values = info.map { valueInfo ->
-                valueInfo.map {
-                    Triple(
-                        it.nrOfShares * it.todayClose, it.nrOfShares * it.yesterdayClose,
-                        it.nrOfShares * it.onBuy.toDouble()
-                    )
-                }
+            }.wrap().map {
+                createReport(it)
             }
-
-            values.map {
-                it.fold(Triple(0.0, 0.0, 0.0)) { acc, new ->
-                    val (accToday, accYesterday, accOnBuy) = acc
-                    val (today, yesterday, onBuy) = new
-                    Triple(accToday + today, accYesterday + yesterday, accOnBuy + onBuy)
-                }
-            }.map { (today, yesterday, onBuy) ->
-                val perfToday = today / (yesterday / 100.0) - 100.0
-                val absoluteToday = today - yesterday
-                val perfTotal = today / (onBuy / 100.0) - 100.0
-                val absoluteTotal = today - onBuy
-                (perfToday to absoluteToday) to (perfTotal to absoluteTotal)
-            }.map {
-                val (today, total) = it
-                Report(
-                    today.first.rounded(),
-                    today.second.rounded(),
-                    total.first.rounded(),
-                    total.second.rounded()
-                )
-            }
-
         }
 
-    private fun Double.asValidatedDivisor(): Validated<CalculationError, Double> =
+    private fun Double.asValidatedDivisor(): Validated<CalculationError, BigDecimal> =
         when (this) {
             0.0 -> Validated.Invalid(CalculationError.ZeroShares)
-            else -> Validated.Valid(this)
+            else -> Validated.Valid(this.bd())
         }
 
     private fun Map<String, History>.getValueAsValidated(key: String): Validated<CalculationError, History> =
@@ -107,14 +100,17 @@ class PerformanceCalculation {
             }
         )
 
-    private val Validated<CalculationError, History>.closeValue: Validated<CalculationError, Double>
+    private val Validated<CalculationError, History>.closeValue: Validated<CalculationError, BigDecimal>
         get() = fold(
             { Validated.Invalid(it) },
             {
                 when (it.data.size) {
                     0 -> Validated.Invalid(CalculationError.NoRemoteCloseValue)
                     1 -> {
-                        Validated.Valid(it.data[0].close)
+                        when (val value = it.data[0].close) {
+                            0.0 -> Validated.Invalid(CalculationError.ZeroRemoteCloseValue)
+                            else -> Validated.Valid(value.bd())
+                        }
                     }
                     else -> Validated.Invalid(CalculationError.TooManyCloseValues)
                 }
@@ -153,7 +149,7 @@ class PerformanceCalculation {
         parVal(
             nrOfShares, todayClose, yesterdayClose
         ) { nrOfShares, todayClose, yesterdayClose ->
-            ValueInfo(nrOfShares, todayClose, yesterdayClose, onBuy)
+            ValueInfo(nrOfShares, Euros(todayClose), Euros(yesterdayClose), onBuy)
         }
 
     private fun <E, T> List<Validated<E, T>>.wrap(): Validated<E, List<T>> = firstOrNull {

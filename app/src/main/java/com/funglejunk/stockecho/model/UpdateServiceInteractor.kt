@@ -10,17 +10,20 @@ import arrow.core.extensions.listk.traverse.sequence
 import arrow.fx.IO
 import arrow.fx.extensions.fx
 import arrow.fx.extensions.io.applicative.applicative
+import arrow.fx.extensions.toIO
 import arrow.fx.fix
 import com.funglejunk.stockecho.data.History
 import com.funglejunk.stockecho.data.Report
 import com.funglejunk.stockecho.getCurrentTradingDay
+import com.funglejunk.stockecho.repo.Allocation
 import com.funglejunk.stockecho.repo.MockPrefs
 import com.funglejunk.stockecho.repo.RemoteRepo
 import com.funglejunk.stockecho.verifySEOpen
 import kotlinx.serialization.UnsafeSerializationApi
 import java.time.LocalDate
 
-typealias HistoryResponseIO = IO<Either<Throwable, Map<String, History>>>
+typealias HistoryResponse = Either<Throwable, Map<String, History>>
+typealias HistoryResponseIO = IO<HistoryResponse>
 
 @UnsafeSerializationApi
 class UpdateServiceInteractor {
@@ -29,17 +32,18 @@ class UpdateServiceInteractor {
 
     fun calculatePerformance(): IO<Either<Throwable, Validated<NonEmptyList<PerformanceCalculation.CalculationError>, Report>>> =
         IO.fx {
-            val isins = prefs.getAllAllocations().bind().map { it.isin }.toTypedArray()
+            val allocations = prefs.getAllAllocations().bind().toIO().bind()
+            val isins = allocations.map { it.isin }.toTypedArray()
             val todayEither = !effect {
                 fetchDataForToday(*isins)
             }.bind()
             val yesterdayEither = !effect {
                 fetchDataForYesterday(*isins)
             }.bind()
-            Either.fx<Throwable, Pair<Map<String, History>, Map<String, History>>> {
-                !todayEither to !yesterdayEither
-            }.flatMap { (today, yesterday) ->
-                PerformanceCalculation().calculate(prefs, today, yesterday).attempt().unsafeRunSync()
+            Either.fx {
+                val today = !todayEither
+                val yesterday = !yesterdayEither
+                PerformanceCalculation().calculate(allocations, today, yesterday)
             }
         }
 
