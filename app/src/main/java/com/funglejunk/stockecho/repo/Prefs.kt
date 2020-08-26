@@ -2,17 +2,15 @@ package com.funglejunk.stockecho.repo
 
 import android.content.Context
 import arrow.core.Either
-import arrow.core.Option
-import arrow.core.toOption
 import arrow.fx.IO
-import kotlinx.serialization.*
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.Serializer
 import kotlinx.serialization.descriptors.PrimitiveKind
 import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
 import kotlinx.serialization.descriptors.SerialDescriptor
-import kotlinx.serialization.descriptors.SerialKind
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
-import kotlinx.serialization.internal.StringDescriptor
 import kotlinx.serialization.json.Json
 import java.math.BigDecimal
 
