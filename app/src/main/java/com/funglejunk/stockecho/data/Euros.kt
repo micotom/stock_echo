@@ -21,7 +21,5 @@ inline class Euros(val amount: BigDecimal) {
     operator fun minus(other: Euros) = this / other.amount
 
     operator fun minus(other: BigDecimal) = Euros(amount - other)
-
-    fun toRoundedDouble(): Double = amount.toDouble().rounded()
-
+    
 }
