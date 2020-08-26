@@ -8,6 +8,8 @@ import arrow.core.Validated
 import arrow.fx.IO
 import arrow.fx.extensions.fx
 import com.funglejunk.stockecho.data.*
+import com.funglejunk.stockecho.repo.Prefs
+import com.funglejunk.stockecho.repo.SharedPrefs
 import kotlinx.serialization.UnsafeSerializationApi
 import timber.log.Timber
 
@@ -28,7 +30,9 @@ class UpdateService : JobIntentService() {
             }
     }
 
-    private val interactor = UpdateServiceInteractor()
+    private val interactor: UpdateServiceInteractor by lazy {
+        UpdateServiceInteractor(SharedPrefs(applicationContext))
+    }
 
     override fun onHandleWork(intent: Intent) {
         IO.fx {

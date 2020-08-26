@@ -17,6 +17,7 @@ import com.funglejunk.stockecho.data.Report
 import com.funglejunk.stockecho.getCurrentTradingDay
 import com.funglejunk.stockecho.repo.Allocation
 import com.funglejunk.stockecho.repo.MockPrefs
+import com.funglejunk.stockecho.repo.Prefs
 import com.funglejunk.stockecho.repo.RemoteRepo
 import com.funglejunk.stockecho.verifySEOpen
 import kotlinx.serialization.UnsafeSerializationApi
@@ -26,9 +27,7 @@ typealias HistoryResponse = Either<Throwable, Map<String, History>>
 typealias HistoryResponseIO = IO<HistoryResponse>
 
 @UnsafeSerializationApi
-class UpdateServiceInteractor {
-
-    private val prefs = MockPrefs()
+class UpdateServiceInteractor(private val prefs: Prefs) {
 
     fun calculatePerformance(): IO<Either<Throwable, Validated<NonEmptyList<PerformanceCalculation.CalculationError>, Report>>> =
         IO.fx {
