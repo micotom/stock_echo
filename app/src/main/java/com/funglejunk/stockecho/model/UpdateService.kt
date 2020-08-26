@@ -44,7 +44,7 @@ class UpdateService : JobIntentService() {
             { eitherValidatedReport ->
                 eitherValidatedReport.fold(
                     { error ->
-                        onError(error)
+                        onError(Throwable(error::class.java.simpleName))
                     },
                     { validatedReport ->
                         when (validatedReport) {

@@ -114,6 +114,8 @@ private fun getUpdateRequestedIntent(context: Context) = PendingIntent.getBroadc
 )
 
 private fun RemoteViews.setErrorViewsVisible() = kotlin.run {
+    setViewVisibility(R.id.today_text, View.GONE)
+    setViewVisibility(R.id.total_text, View.GONE)
     setViewVisibility(R.id.today_perf_text, View.GONE)
     setViewVisibility(R.id.today_absolute_text, View.GONE)
     setViewVisibility(R.id.total_perf_text, View.GONE)
@@ -127,4 +129,6 @@ private fun RemoteViews.setDataViewsVisible() = kotlin.run {
     setViewVisibility(R.id.today_absolute_text, View.VISIBLE)
     setViewVisibility(R.id.total_perf_text, View.VISIBLE)
     setViewVisibility(R.id.total_absolute_text, View.VISIBLE)
+    setViewVisibility(R.id.today_text, View.VISIBLE)
+    setViewVisibility(R.id.total_text, View.VISIBLE)
 }

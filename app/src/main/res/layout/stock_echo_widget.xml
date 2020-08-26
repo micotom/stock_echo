@@ -84,8 +84,10 @@
         android:textColor="@android:color/holo_red_dark"
         android:visibility="invisible"
         android:layout_centerInParent="true"
+        android:gravity="center"
+        android:layout_margin="2dp"
         tools:visibility="visible"
-        tools:text="Invalid Argument Exception"
+        tools:text="java.lang.Throwable.ZeroShares"
         />
 
 </RelativeLayout>
