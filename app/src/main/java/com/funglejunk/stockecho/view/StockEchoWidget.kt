@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.view.View
 import android.widget.RemoteViews
+import arrow.fx.IO
 import com.funglejunk.stockecho.*
 import com.funglejunk.stockecho.data.*
 import timber.log.Timber
@@ -26,37 +27,54 @@ class StockEchoWidget : AppWidgetProvider() {
 
     override fun onReceive(context: Context?, intent: Intent?) {
         super.onReceive(context, intent)
-        context?.let {
+        context?.let { safeContext ->
             val views = RemoteViews(context.packageName, R.layout.stock_echo_widget)
             when (intent?.action) {
-                ACTION_REQUEST_UPDATE -> {
-                    views.setDataViewsVisible()
-                    views.setTextViewText(R.id.today_perf_text, "...")
-                    views.setTextViewText(R.id.today_absolute_text, "...")
-                    views.setTextViewText(R.id.total_perf_text, "...")
-                    views.setTextViewText(R.id.total_absolute_text, "...")
-                    invalidateViews(context, views)
+                ACTION_REQUEST_UPDATE -> signalUpdateHappening(views, safeContext)
+                ACTION_REPORT_READY -> displayNewReport(views, intent, safeContext)
+                ACTION_ERROR -> displayErrorHappened(views, intent, safeContext)
+                else -> logUnresolvableIntent(intent)
+            }.attempt().unsafeRunSync().fold(
+                {
+                    Timber.e("Error while processing intent (action: ${intent?.action}: $it")
+                },
+                {
+                    Timber.d("intent successfully handled: ${intent?.action}")
                 }
-                ACTION_REPORT_READY -> {
-                    views.setDataViewsVisible()
-                    intent.getParcelableExtra<Report>(EXTRA_REPORT_KEY)?.let { report ->
-                        views.setTextViewText(R.id.today_perf_text, report.perfToday.percentString())
-                        views.setTextViewText(R.id.today_absolute_text, report.absoluteToday.euroString())
-                        views.setTextViewText(R.id.total_perf_text, report.perfTotal.percentString())
-                        views.setTextViewText(R.id.total_absolute_text, report.absoluteTotal.euroString())
-                        invalidateViews(context, views)
-                    }
-                }
-                ACTION_ERROR -> {
-                    views.setErrorViewsVisible()
-                    intent.getStringExtra(EXTRA_ERROR_MSG)?.let { message ->
-                        views.setTextViewText(R.id.error_text, message)
-                        invalidateViews(context, views)
-                    }
-                }
-                else -> Timber.w("Received unresolvable intent with action: ${intent?.action}")
-            }
+            )
         }
+    }
+
+    private fun logUnresolvableIntent(intent: Intent?) = IO {
+        Timber.w("Received unresolvable intent with action: ${intent?.action}")
+    }
+
+    private fun displayErrorHappened(views: RemoteViews, intent: Intent, context: Context) = IO {
+        views.setErrorViewsVisible()
+        intent.getStringExtra(EXTRA_ERROR_MSG)?.let { message ->
+            views.setTextViewText(R.id.error_text, message)
+            invalidateViews(context, views)
+        }
+    }
+
+    private fun displayNewReport(views: RemoteViews, intent: Intent, context: Context) = IO {
+        views.setDataViewsVisible()
+        intent.getParcelableExtra<Report>(EXTRA_REPORT_KEY)?.let { report ->
+            views.setTextViewText(R.id.today_perf_text, report.perfToday.percentString())
+            views.setTextViewText(R.id.today_absolute_text, report.absoluteToday.euroString())
+            views.setTextViewText(R.id.total_perf_text, report.perfTotal.percentString())
+            views.setTextViewText(R.id.total_absolute_text, report.absoluteTotal.euroString())
+            invalidateViews(context, views)
+        }
+    }
+
+    private fun signalUpdateHappening(views: RemoteViews, context: Context) = IO {
+        views.setDataViewsVisible()
+        views.setTextViewText(R.id.today_perf_text, "...")
+        views.setTextViewText(R.id.today_absolute_text, "...")
+        views.setTextViewText(R.id.total_perf_text, "...")
+        views.setTextViewText(R.id.total_absolute_text, "...")
+        invalidateViews(context, views)
     }
 
     override fun onEnabled(context: Context) = Unit
