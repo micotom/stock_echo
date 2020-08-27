@@ -5,6 +5,7 @@ import android.content.Intent
 import androidx.core.app.JobIntentService
 import arrow.core.NonEmptyList
 import arrow.core.Validated
+import arrow.core.extensions.either.monad.flatten
 import arrow.fx.IO
 import arrow.fx.extensions.fx
 import com.funglejunk.stockecho.data.*
@@ -39,24 +40,18 @@ class UpdateService : JobIntentService() {
             !effect {
                 interactor.calculatePerformance()
             }.bind()
-        }.attempt().unsafeRunSync().fold(
-            { onError(it) },
-            { eitherValidatedReport ->
-                eitherValidatedReport.fold(
-                    { error ->
-                        onError(Throwable(error::class.java.simpleName))
-                    },
-                    { validatedReport ->
-                        when (validatedReport) {
-                            is Validated.Invalid -> onError(
-                                Throwable(validatedReport.e.asSimpleThrowable())
-                            )
-                            is Validated.Valid -> onSuccess(validatedReport.a)
-                        }
-                    }
-                )
-            }
-        )
+        }.unsafeRunAsync {
+            val res = it.flatten()
+            res.fold(
+                { error -> onError(Throwable(error::class.java.simpleName)) },
+                { validatedReport ->
+                    validatedReport.fold(
+                        { errorList -> onError(errorList.asSimpleThrowable())},
+                        { report -> onSuccess(report) }
+                    )
+                }
+            )
+        }
     }
 
     private fun onError(t: Throwable) {
