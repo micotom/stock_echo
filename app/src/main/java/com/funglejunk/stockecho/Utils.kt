@@ -1,5 +1,6 @@
 package com.funglejunk.stockecho
 
+import android.appwidget.AppWidgetManager
 import java.lang.IllegalArgumentException
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -52,4 +53,9 @@ private val holidays2021 = listOf(
     LocalDate.of(2021, 5, 13),
     LocalDate.of(2021, 5, 23),
     LocalDate.of(2021, 5, 24)
+)
+
+val ANDROID_WIDGET_INTENTS = listOf(
+    AppWidgetManager.ACTION_APPWIDGET_DELETED, AppWidgetManager.ACTION_APPWIDGET_DISABLED,
+    AppWidgetManager.ACTION_APPWIDGET_ENABLED, AppWidgetManager.ACTION_APPWIDGET_UPDATE
 )

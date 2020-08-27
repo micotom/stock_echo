@@ -20,13 +20,18 @@ class StockEchoWidget : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray
     ) {
+        Timber.d("onUpdate()")
         for (appWidgetId in appWidgetIds) {
             updateAppWidget(context, appWidgetManager, appWidgetId)
         }
     }
 
     override fun onReceive(context: Context?, intent: Intent?) {
+        Timber.d("onReceive(): ${intent?.action}")
         super.onReceive(context, intent)
+
+        if (ANDROID_WIDGET_INTENTS.any { it == intent?.action }) return
+
         context?.let { safeContext ->
             val views = RemoteViews(context.packageName, R.layout.stock_echo_widget)
             when (intent?.action) {
@@ -93,6 +98,7 @@ internal fun updateAppWidget(
     appWidgetManager: AppWidgetManager,
     appWidgetId: Int
 ) {
+    Timber.d("updateAppWidget(): $appWidgetId")
     val views = RemoteViews(context.packageName, R.layout.stock_echo_widget)
     views.setTextViewText(R.id.today_perf_text, "-")
     views.setTextViewText(R.id.today_absolute_text, "-")
