@@ -30,12 +30,18 @@ class StockEchoWidget : AppWidgetProvider() {
         Timber.d("onReceive(): ${intent?.action}")
         super.onReceive(context, intent)
 
-        if (ANDROID_WIDGET_INTENTS.any { it == intent?.action }) return
+        if (intent?.action in ANDROID_WIDGET_INTENTS) return
 
         context?.let { safeContext ->
             val views = RemoteViews(context.packageName, R.layout.stock_echo_widget)
             when (intent?.action) {
-                ACTION_REQUEST_UPDATE -> signalUpdateHappening(views, safeContext)
+                ACTION_REQUEST_UPDATE -> {
+                    views.setOnClickPendingIntent(
+                        R.id.layout_root,
+                        getUpdateRequestedIntent(context)
+                    )
+                    signalUpdateHappening(views, safeContext)
+                }
                 ACTION_REPORT_READY -> displayNewReport(views, intent, safeContext)
                 ACTION_ERROR -> displayErrorHappened(views, intent, safeContext)
                 else -> logUnresolvableIntent(intent)
