@@ -8,11 +8,15 @@ import android.content.Context
 import android.content.Intent
 import android.view.View
 import android.widget.RemoteViews
+import androidx.core.app.JobIntentService
 import arrow.fx.IO
 import com.funglejunk.stockecho.*
 import com.funglejunk.stockecho.data.*
+import com.funglejunk.stockecho.model.UpdateService
+import kotlinx.serialization.UnsafeSerializationApi
 import timber.log.Timber
 
+@UnsafeSerializationApi
 class StockEchoWidget : AppWidgetProvider() {
 
     override fun onUpdate(
@@ -32,20 +36,15 @@ class StockEchoWidget : AppWidgetProvider() {
 
         if (intent?.action in ANDROID_WIDGET_INTENTS) return
 
-        context?.let { safeContext ->
+        context?.let { _ ->
             val views = RemoteViews(context.packageName, R.layout.stock_echo_widget)
-            when (intent?.action) {
-                ACTION_REQUEST_UPDATE -> {
-                    views.setOnClickPendingIntent(
-                        R.id.layout_root,
-                        getUpdateRequestedIntent(context)
-                    )
-                    signalUpdateHappening(views, safeContext)
-                }
-                ACTION_REPORT_READY -> displayNewReport(views, intent, safeContext)
-                ACTION_ERROR -> displayErrorHappened(views, intent, safeContext)
+            val action = when (intent?.action) {
+                ACTION_REQUEST_UPDATE -> processUpdateRequest(intent, views, context)
+                ACTION_REPORT_READY -> displayNewReport(views, intent, context)
+                ACTION_ERROR -> displayErrorHappened(views, intent, context)
                 else -> logUnresolvableIntent(intent)
-            }.attempt().unsafeRunSync().fold(
+            }
+            action.attempt().unsafeRunSync().fold(
                 {
                     Timber.e("Error while processing intent (action: ${intent?.action}: $it")
                 },
@@ -54,6 +53,21 @@ class StockEchoWidget : AppWidgetProvider() {
                 }
             )
         }
+    }
+
+    private fun processUpdateRequest(
+        intent: Intent,
+        views: RemoteViews,
+        context: Context
+    ): IO<Unit> {
+        JobIntentService.enqueueWork(
+            context, UpdateService::class.java, 0x42, intent
+        )
+        views.setOnClickPendingIntent(
+            R.id.layout_root,
+            getUpdateRequestedIntent(context)
+        )
+        return signalUpdateHappening(views, context)
     }
 
     private fun logUnresolvableIntent(intent: Intent?) = IO {
@@ -105,6 +119,7 @@ class StockEchoWidget : AppWidgetProvider() {
     }
 }
 
+@UnsafeSerializationApi
 internal fun updateAppWidget(
     context: Context,
     appWidgetManager: AppWidgetManager,
@@ -127,11 +142,20 @@ internal fun updateAppWidget(
     }
 }
 
-private fun getUpdateRequestedIntent(context: Context) = PendingIntent.getBroadcast(
-    context, 0xab, Intent(ACTION_REQUEST_UPDATE).apply {
-        `package` = context.packageName
-    }, 0
-)
+@UnsafeSerializationApi
+private fun getUpdateRequestedIntent(context: Context): PendingIntent =
+    with(
+        Intent(context, StockEchoWidget::class.java).apply {
+            action = ACTION_REQUEST_UPDATE
+        }
+    ) {
+        PendingIntent.getBroadcast(
+            context,
+            PI_REQUEST_UPDATE_ID,
+            this,
+            PendingIntent.FLAG_CANCEL_CURRENT
+        )
+    }
 
 private fun RemoteViews.setErrorViewsVisible() = kotlin.run {
     setViewVisibility(R.id.today_text, View.GONE)

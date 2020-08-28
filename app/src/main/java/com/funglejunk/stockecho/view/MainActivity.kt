@@ -8,6 +8,7 @@ import android.widget.RemoteViews
 import androidx.appcompat.app.AppCompatActivity
 import com.funglejunk.stockecho.R
 import kotlinx.android.synthetic.main.activity_main.*
+import kotlinx.serialization.UnsafeSerializationApi
 import timber.log.Timber
 
 class MainActivity : AppCompatActivity() {
@@ -29,6 +30,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    @UnsafeSerializationApi
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setResult(Activity.RESULT_CANCELED, configurationIntent)
@@ -40,6 +42,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    @UnsafeSerializationApi
     private fun finishIntent() {
         val appWidgetManager = AppWidgetManager.getInstance(this)
         RemoteViews(packageName, R.layout.stock_echo_widget).also { views ->
