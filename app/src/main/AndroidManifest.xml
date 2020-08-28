@@ -38,12 +38,6 @@
                 android:resource="@xml/stock_echo_widget_info" />
         </receiver>
 
-        <receiver android:name=".model.UpdateCommandReceiver">
-            <intent-filter>
-                <action android:name="com.funglejunk.stockecho.REQUEST_UPDATE" />
-            </intent-filter>
-        </receiver>
-
         <service
             android:name=".model.UpdateService"
             android:enabled="true"
