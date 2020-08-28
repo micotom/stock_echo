@@ -15,11 +15,10 @@ import arrow.fx.fix
 import com.funglejunk.stockecho.data.History
 import com.funglejunk.stockecho.data.Report
 import com.funglejunk.stockecho.getCurrentTradingDay
-import com.funglejunk.stockecho.repo.Allocation
-import com.funglejunk.stockecho.repo.MockPrefs
 import com.funglejunk.stockecho.repo.Prefs
 import com.funglejunk.stockecho.repo.RemoteRepo
 import com.funglejunk.stockecho.verifySEOpen
+import kotlinx.coroutines.Dispatchers
 import kotlinx.serialization.UnsafeSerializationApi
 import java.time.LocalDate
 
@@ -33,11 +32,12 @@ class UpdateServiceInteractor(private val prefs: Prefs) {
         IO.fx {
             val allocations = prefs.getAllAllocations().bind().toIO().bind()
             val isins = allocations.map { it.isin }.toTypedArray()
-            val todayEither = !effect {
-                fetchDataForToday(*isins)
-            }.bind()
-            val yesterdayEither = !effect {
-                fetchDataForYesterday(*isins)
+            val (todayEither, yesterdayEither) = IO.parMapN(
+                Dispatchers.IO,
+                !effect { fetchDataForToday(*isins) },
+                !effect { fetchDataForYesterday(*isins) }
+            ) { today, yesterday ->
+                today to yesterday
             }.bind()
             Either.fx {
                 val today = !todayEither
