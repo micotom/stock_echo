@@ -5,3 +5,6 @@ const val ACTION_REPORT_READY = "com.funglejunk.stockecho.REPORT_READY"
 const val EXTRA_REPORT_KEY = "REPORT"
 const val ACTION_ERROR = "com.funglejunk.stockecho.ERROR"
 const val EXTRA_ERROR_MSG = "MESSAGE"
+
+const val PI_REQUEST_UPDATE_ID = 0xab
+const val PI_REPORT_READY_ID = 0xcd
