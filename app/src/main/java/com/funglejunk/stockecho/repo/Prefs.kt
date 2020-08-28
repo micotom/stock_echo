@@ -27,15 +27,17 @@ data class Allocation(
 
 class MockPrefs : Prefs {
 
-    private val mockAllocations = listOf(
-        Allocation("LU1737652823", 8.0, BigDecimal.valueOf(61.99)),
-        Allocation("IE00BKX55T58", 132.916, BigDecimal.valueOf(59.807)),
-        Allocation("IE00BZ163L38", 35.559, BigDecimal.valueOf(46.3424)),
-        Allocation("IE00B3VVMM84", 47.234, BigDecimal.valueOf(50.5778)),
-        Allocation("IE00B1XNHC34", 68.0, BigDecimal.valueOf(7.4)),
-        Allocation("IE00BK5BQV03", 37.0, BigDecimal.valueOf(55.58)),
-        Allocation("IE00BK5BR733", 13.0, BigDecimal.valueOf(45.99))
-    )
+    companion object {
+        val mockAllocations = listOf(
+            Allocation("LU1737652823", 8.0, BigDecimal.valueOf(61.99)),
+            Allocation("IE00BKX55T58", 132.916, BigDecimal.valueOf(59.807)),
+            Allocation("IE00BZ163L38", 35.559, BigDecimal.valueOf(46.3424)),
+            Allocation("IE00B3VVMM84", 47.234, BigDecimal.valueOf(50.5778)),
+            Allocation("IE00B1XNHC34", 68.0, BigDecimal.valueOf(7.4)),
+            Allocation("IE00BK5BQV03", 37.0, BigDecimal.valueOf(55.58)),
+            Allocation("IE00BK5BR733", 13.0, BigDecimal.valueOf(45.99))
+        )
+    }
 
     override fun getAllAllocations() = IO { Either.right(mockAllocations) }
 
