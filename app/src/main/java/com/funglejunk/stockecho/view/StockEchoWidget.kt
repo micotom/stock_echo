@@ -63,29 +63,35 @@ class StockEchoWidget : AppWidgetProvider() {
     private fun displayErrorHappened(views: RemoteViews, intent: Intent, context: Context) = IO {
         views.setErrorViewsVisible()
         intent.getStringExtra(EXTRA_ERROR_MSG)?.let { message ->
-            views.setTextViewText(R.id.error_text, message)
-            invalidateViews(context, views)
+            with(views) {
+                setTextViewText(R.id.error_text, message)
+                invalidateViews(context, this)
+            }
         }
     }
 
     private fun displayNewReport(views: RemoteViews, intent: Intent, context: Context) = IO {
         views.setDataViewsVisible()
         intent.getParcelableExtra<Report>(EXTRA_REPORT_KEY)?.let { report ->
-            views.setTextViewText(R.id.today_perf_text, report.perfToday.percentString())
-            views.setTextViewText(R.id.today_absolute_text, report.absoluteToday.euroString())
-            views.setTextViewText(R.id.total_perf_text, report.perfTotal.percentString())
-            views.setTextViewText(R.id.total_absolute_text, report.absoluteTotal.euroString())
-            invalidateViews(context, views)
+            with(views) {
+                setTextViewText(R.id.today_perf_text, report.perfToday.percentString())
+                setTextViewText(R.id.today_absolute_text, report.absoluteToday.euroString())
+                setTextViewText(R.id.total_perf_text, report.perfTotal.percentString())
+                setTextViewText(R.id.total_absolute_text, report.absoluteTotal.euroString())
+                invalidateViews(context, this)
+            }
         }
     }
 
     private fun signalUpdateHappening(views: RemoteViews, context: Context) = IO {
-        views.setDataViewsVisible()
-        views.setTextViewText(R.id.today_perf_text, "...")
-        views.setTextViewText(R.id.today_absolute_text, "...")
-        views.setTextViewText(R.id.total_perf_text, "...")
-        views.setTextViewText(R.id.total_absolute_text, "...")
-        invalidateViews(context, views)
+        with(views) {
+            setDataViewsVisible()
+            setTextViewText(R.id.today_perf_text, "...")
+            setTextViewText(R.id.today_absolute_text, "...")
+            setTextViewText(R.id.total_perf_text, "...")
+            setTextViewText(R.id.total_absolute_text, "...")
+            invalidateViews(context, this)
+        }
     }
 
     override fun onEnabled(context: Context) = Unit
@@ -106,17 +112,19 @@ internal fun updateAppWidget(
 ) {
     Timber.d("updateAppWidget(): $appWidgetId")
     val views = RemoteViews(context.packageName, R.layout.stock_echo_widget)
-    views.setTextViewText(R.id.today_perf_text, "-")
-    views.setTextViewText(R.id.today_absolute_text, "-")
-    views.setTextViewText(R.id.total_perf_text, "-")
-    views.setTextViewText(R.id.total_absolute_text, "-")
+    with(views) {
+        setTextViewText(R.id.today_perf_text, "-")
+        setTextViewText(R.id.today_absolute_text, "-")
+        setTextViewText(R.id.total_perf_text, "-")
+        setTextViewText(R.id.total_absolute_text, "-")
 
-    views.setOnClickPendingIntent(
-        R.id.layout_root,
-        getUpdateRequestedIntent(context)
-    )
+        setOnClickPendingIntent(
+            R.id.layout_root,
+            getUpdateRequestedIntent(context)
+        )
 
-    appWidgetManager.updateAppWidget(appWidgetId, views)
+        appWidgetManager.updateAppWidget(appWidgetId, this)
+    }
 }
 
 private fun getUpdateRequestedIntent(context: Context) = PendingIntent.getBroadcast(
