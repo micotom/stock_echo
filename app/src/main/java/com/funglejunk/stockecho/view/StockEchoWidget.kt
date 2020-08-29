@@ -6,6 +6,7 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
 import android.view.View
 import android.widget.RemoteViews
 import androidx.core.app.JobIntentService
@@ -40,7 +41,7 @@ class StockEchoWidget : AppWidgetProvider() {
             val views = RemoteViews(context.packageName, R.layout.stock_echo_widget)
             val action = when (intent?.action) {
                 ACTION_REQUEST_UPDATE -> processUpdateRequest(intent, views, context)
-                ACTION_REPORT_READY -> displayNewReport(views, intent, context)
+                ACTION_REPORT_READY -> displayNewResult(views, intent, context)
                 ACTION_ERROR -> displayErrorHappened(views, intent, context)
                 else -> logUnresolvableIntent(intent)
             }
@@ -84,7 +85,7 @@ class StockEchoWidget : AppWidgetProvider() {
         }
     }
 
-    private fun displayNewReport(views: RemoteViews, intent: Intent, context: Context) = IO {
+    private fun displayNewResult(views: RemoteViews, intent: Intent, context: Context) = IO {
         views.setDataViewsVisible()
         intent.getParcelableExtra<Report>(EXTRA_REPORT_KEY)?.let { report ->
             with(views) {
@@ -92,9 +93,23 @@ class StockEchoWidget : AppWidgetProvider() {
                 setTextViewText(R.id.today_absolute_text, report.absoluteToday.euroString())
                 setTextViewText(R.id.total_perf_text, report.perfTotal.percentString())
                 setTextViewText(R.id.total_absolute_text, report.absoluteTotal.euroString())
-                invalidateViews(context, this)
             }
         }
+        intent.getSerializableExtra(EXTRA_CHART_DATA_KEY)?.let { chartData ->
+            @Suppress("UNCHECKED_CAST")
+            chartData as Array<Float>
+            val chartWidth = 480
+            val chartHeight = 480
+            with (ChartCanvas(context)) {
+                val bmp = Bitmap.createBitmap(chartWidth, chartHeight, Bitmap.Config.ARGB_8888)
+                setBitmap(bmp)
+                draw(chartData.toList(), chartWidth, chartHeight).attempt().unsafeRunSync().fold(
+                    { Timber.e(it) },
+                    { views.setImageViewBitmap(R.id.canvas_view, bmp) }
+                )
+            }
+        }
+        invalidateViews(context, views)
     }
 
     private fun signalUpdateHappening(views: RemoteViews, context: Context) = IO {

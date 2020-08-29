@@ -3,13 +3,11 @@ package com.funglejunk.stockecho.model
 import android.content.Context
 import android.content.Intent
 import androidx.core.app.JobIntentService
+import arrow.core.Either
 import arrow.core.NonEmptyList
-import arrow.core.Validated
-import arrow.core.extensions.either.monad.flatten
 import arrow.fx.IO
 import arrow.fx.extensions.fx
 import com.funglejunk.stockecho.data.*
-import com.funglejunk.stockecho.repo.Prefs
 import com.funglejunk.stockecho.repo.SharedPrefs
 import kotlinx.serialization.UnsafeSerializationApi
 import timber.log.Timber
@@ -18,10 +16,11 @@ import timber.log.Timber
 class UpdateService : JobIntentService() {
 
     private companion object {
-        fun getDataReportIntent(applicationContext: Context, report: Report): Intent =
+        fun getDataResultIntent(applicationContext: Context, report: Report, chartData: ChartData): Intent =
             Intent(ACTION_REPORT_READY).apply {
                 `package` = applicationContext.packageName
                 putExtra(EXTRA_REPORT_KEY, report)
+                putExtra(EXTRA_CHART_DATA_KEY, chartData.toTypedArray())
             }
 
         fun getErrorIntent(applicationContext: Context, message: String): Intent =
@@ -37,17 +36,21 @@ class UpdateService : JobIntentService() {
 
     override fun onHandleWork(intent: Intent) {
         IO.fx {
-            !effect {
+            val reportEither = !effect {
                 interactor.calculatePerformance()
             }.bind()
+            val chartDataEither = !effect {
+                interactor.getChartData()
+            }.bind()
+            reportEither to chartDataEither
         }.unsafeRunAsync {
-            val res = it.flatten()
+            val res = it.flattenToPair()
             res.fold(
                 { error -> onError(Throwable(error::class.java.simpleName)) },
-                { validatedReport ->
+                { (validatedReport, chartData) ->
                     validatedReport.fold(
                         { errorList -> onError(errorList.asSimpleThrowable())},
-                        { report -> onSuccess(report) }
+                        { report -> onSuccess(report, chartData) }
                     )
                 }
             )
@@ -59,12 +62,36 @@ class UpdateService : JobIntentService() {
         sendBroadcast(getErrorIntent(applicationContext, t.message ?: "Unknown Error"))
     }
 
-    private fun onSuccess(report: Report) {
-        sendBroadcast(getDataReportIntent(applicationContext, report))
+    private fun onSuccess(report: Report, chartData: ChartData) {
+        sendBroadcast(getDataResultIntent(applicationContext, report, chartData))
     }
 
     private fun <T: Any> NonEmptyList<T>.asSimpleThrowable() = Throwable(
         map { it::class.java.simpleName }.toList().joinToString()
     )
+
+    private fun <E1: Throwable, V1, E2: Throwable, V2> Either<Throwable, Pair<Either<E1, V1>, Either<E2, V2>>>.flattenToPair(): Either<Throwable, Pair<V1, V2>> =
+        fold(
+            {
+                Either.left(it)
+            },
+            { (either1, either2) ->
+                either1.fold(
+                    {
+                        Either.left(it)
+                    },
+                    { v1 ->
+                        either2.fold(
+                            {
+                                Either.left(it)
+                            },
+                            { v2 ->
+                                Either.right(v1 to v2)
+                            }
+                        )
+                    }
+                )
+            }
+        )
 
 }
