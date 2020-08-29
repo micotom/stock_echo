@@ -19,7 +19,6 @@ object RemoteRepo {
 
     private const val BASE_URL = "https://api.boerse-frankfurt.de/data"
     private const val PRICE_HISTORY_EP = "/price_history"
-    private const val PERFORMANCE_EP = "/performance"
     private const val ISIN_PARAM_ID = "isin"
     private const val MIN_DATE_ID = "minDate"
     private const val MAX_DATE_ID = "maxDate"
