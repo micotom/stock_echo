@@ -22,11 +22,35 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.serialization.UnsafeSerializationApi
 import java.time.LocalDate
 
+typealias ChartData = List<Float>
 typealias HistoryResponse = Either<Throwable, Map<String, History>>
 typealias HistoryResponseIO = IO<HistoryResponse>
 
 @UnsafeSerializationApi
 class UpdateServiceInteractor(private val prefs: Prefs) {
+
+    fun getChartData(): IO<Either<Throwable, ChartData>> = IO.fx {
+        val allocations = prefs.getAllAllocations().bind().toIO().bind()
+        val isins = allocations.map { it.isin }.toTypedArray()
+        val historyEither = reqFromRepo(
+            LocalDate.now().minusDays(100),
+            LocalDate.now(),
+            *isins
+        ).bind()
+        Either.fx {
+            val history = !historyEither
+            history.values.map { historyEntry ->
+                historyEntry.data.map {
+                    it.copy(
+                        close = it.close * (allocations.find { it.isin == historyEntry.isin }?.nrOfShares
+                            ?: 0.0)
+                    )
+                }
+            }.flatten().groupBy { it.date }.map {
+                it.key to it.value.fold(0.0) { acc, new -> acc + new.close }
+            }.sortedBy { it.first }.map { it.second.toFloat() }
+        }
+    }
 
     fun calculatePerformance(): IO<Either<Throwable, Validated<NonEmptyList<PerformanceCalculation.CalculationError>, Report>>> =
         IO.fx {
@@ -48,17 +72,24 @@ class UpdateServiceInteractor(private val prefs: Prefs) {
 
     private fun fetchDataForToday(vararg isins: String): HistoryResponseIO =
         getCurrentTradingDay().verifySEOpen().run {
-            reqFromRepo(this, *isins)
+            reqFromRepoSingleDay(this, *isins)
         }
 
     private fun fetchDataForYesterday(vararg isins: String): HistoryResponseIO =
         getCurrentTradingDay().minusDays(1).verifySEOpen().run {
-            reqFromRepo(this, *isins)
+            reqFromRepoSingleDay(this, *isins)
         }
 
-    private fun reqFromRepo(date: LocalDate, vararg isins: String): HistoryResponseIO =
+    private fun reqFromRepoSingleDay(date: LocalDate, vararg isins: String): HistoryResponseIO =
+        reqFromRepo(date, date, *isins)
+
+    private fun reqFromRepo(
+        minDate: LocalDate,
+        maxDate: LocalDate,
+        vararg isins: String
+    ): HistoryResponseIO =
         isins.toList().traverse(IO.applicative()) {
-            RemoteRepo.getHistory(it, date, date)
+            RemoteRepo.getHistory(it, minDate, maxDate)
         }.fix().map {
             it.sequence(Either.applicative()).fix().map {
                 it.map { history ->
