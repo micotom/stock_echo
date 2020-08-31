@@ -58,7 +58,7 @@ class StockEchoWidget : AppWidgetProvider() {
             val views = RemoteViews(context.packageName, R.layout.stock_echo_widget)
             val action = WidgetProviderInteractor(
                 WorkerService.Impl(context)
-            ).onNewIntent(action = intent.action!!, callback = callback(context, intent, views))
+            ).onNewIntent(action = intentAction, callback = callback(context, intent, views))
             action.unsafeRunAsync { result ->
                 result.fold(
                     { Timber.e("Error while processing intent (action: $intentAction: $it") },
@@ -68,7 +68,6 @@ class StockEchoWidget : AppWidgetProvider() {
         } ?: {
             Timber.w("intent or action null in onReceive(): $intent")
         }()
-
     }
 
     private val updateRequestCallback: (Context, Intent, RemoteViews) -> IO<Unit> =
@@ -84,6 +83,8 @@ class StockEchoWidget : AppWidgetProvider() {
                     setTextViewText(R.id.total_perf_text, "...")
                     setTextViewText(R.id.total_absolute_text, "...")
                 }
+            }.map {
+                views.setImageViewBitmap(R.id.canvas_view, null)
             }.map {
                 invalidateViews(context, views)
             }
