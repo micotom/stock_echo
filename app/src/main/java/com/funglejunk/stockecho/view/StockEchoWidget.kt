@@ -9,11 +9,14 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.view.View
 import android.widget.RemoteViews
-import androidx.core.app.JobIntentService
 import arrow.fx.IO
-import com.funglejunk.stockecho.*
+import com.funglejunk.stockecho.ANDROID_WIDGET_INTENTS
+import com.funglejunk.stockecho.R
 import com.funglejunk.stockecho.data.*
-import com.funglejunk.stockecho.model.UpdateService
+import com.funglejunk.stockecho.euroString
+import com.funglejunk.stockecho.model.WidgetProviderInteractor
+import com.funglejunk.stockecho.model.WorkerService
+import com.funglejunk.stockecho.percentString
 import kotlinx.serialization.UnsafeSerializationApi
 import timber.log.Timber
 
@@ -31,97 +34,112 @@ class StockEchoWidget : AppWidgetProvider() {
         }
     }
 
+    private fun selectCallback(intentAction: String): (Context, Intent, RemoteViews) -> IO<Unit> =
+        when (intentAction) {
+            ACTION_REQUEST_UPDATE -> updateRequestCallback
+            ACTION_REPORT_READY -> reportReadyCallback
+            ACTION_ERROR -> errorCallback
+            else -> unresolvableIntent
+        }
+
     override fun onReceive(context: Context?, intent: Intent?) {
         Timber.d("onReceive(): ${intent?.action}")
         super.onReceive(context, intent)
 
         if (intent?.action in ANDROID_WIDGET_INTENTS) return
 
-        context?.let { _ ->
+        if (context == null) {
+            Timber.w("null context in onReceive()")
+            return
+        }
+
+        intent?.action?.let { intentAction ->
+            val callback = selectCallback(intentAction)
             val views = RemoteViews(context.packageName, R.layout.stock_echo_widget)
-            val action = when (intent?.action) {
-                ACTION_REQUEST_UPDATE -> processUpdateRequest(intent, views, context)
-                ACTION_REPORT_READY -> displayNewResult(views, intent, context)
-                ACTION_ERROR -> displayErrorHappened(views, intent, context)
-                else -> logUnresolvableIntent(intent)
-            }
-            action.attempt().unsafeRunSync().fold(
-                {
-                    Timber.e("Error while processing intent (action: ${intent?.action}: $it")
-                },
-                {
-                    Timber.d("intent successfully handled: ${intent?.action}")
-                }
-            )
-        }
-    }
-
-    private fun processUpdateRequest(
-        intent: Intent,
-        views: RemoteViews,
-        context: Context
-    ): IO<Unit> {
-        JobIntentService.enqueueWork(
-            context, UpdateService::class.java, 0x42, intent
-        )
-        views.setOnClickPendingIntent(
-            R.id.layout_root,
-            getUpdateRequestedIntent(context)
-        )
-        return signalUpdateHappening(views, context)
-    }
-
-    private fun logUnresolvableIntent(intent: Intent?) = IO {
-        Timber.w("Received unresolvable intent with action: ${intent?.action}")
-    }
-
-    private fun displayErrorHappened(views: RemoteViews, intent: Intent, context: Context) = IO {
-        views.setErrorViewsVisible()
-        intent.getStringExtra(EXTRA_ERROR_MSG)?.let { message ->
-            with(views) {
-                setTextViewText(R.id.error_text, message)
-                invalidateViews(context, this)
-            }
-        }
-    }
-
-    private fun displayNewResult(views: RemoteViews, intent: Intent, context: Context) = IO {
-        views.setDataViewsVisible()
-        intent.getParcelableExtra<Report>(EXTRA_REPORT_KEY)?.let { report ->
-            with(views) {
-                setTextViewText(R.id.today_perf_text, report.perfToday.percentString())
-                setTextViewText(R.id.today_absolute_text, report.absoluteToday.euroString())
-                setTextViewText(R.id.total_perf_text, report.perfTotal.percentString())
-                setTextViewText(R.id.total_absolute_text, report.absoluteTotal.euroString())
-            }
-        }
-        intent.getSerializableExtra(EXTRA_CHART_DATA_KEY)?.let { chartData ->
-            @Suppress("UNCHECKED_CAST")
-            chartData as Array<Float>
-            val chartWidth = 480
-            val chartHeight = 480
-            with (ChartCanvas(context)) {
-                val bmp = Bitmap.createBitmap(chartWidth, chartHeight, Bitmap.Config.ARGB_8888)
-                setBitmap(bmp)
-                draw(chartData.toList(), chartWidth, chartHeight).attempt().unsafeRunSync().fold(
-                    { Timber.e(it) },
-                    { views.setImageViewBitmap(R.id.canvas_view, bmp) }
+            val action = WidgetProviderInteractor(
+                WorkerService.Impl(context)
+            ).onNewIntent(action = intent.action!!, callback = callback(context, intent, views))
+            action.unsafeRunAsync { result ->
+                result.fold(
+                    { Timber.e("Error while processing intent (action: $intentAction: $it") },
+                    { Timber.d("intent successfully handled: $intentAction") }
                 )
             }
-        }
-        invalidateViews(context, views)
+        } ?: {
+            Timber.w("intent or action null in onReceive(): $intent")
+        }()
+
     }
 
-    private fun signalUpdateHappening(views: RemoteViews, context: Context) = IO {
-        with(views) {
-            setDataViewsVisible()
-            setTextViewText(R.id.today_perf_text, "...")
-            setTextViewText(R.id.today_absolute_text, "...")
-            setTextViewText(R.id.total_perf_text, "...")
-            setTextViewText(R.id.total_absolute_text, "...")
-            invalidateViews(context, this)
+    private val updateRequestCallback: (Context, Intent, RemoteViews) -> IO<Unit> =
+        { context, _, views ->
+            IO {
+                views.setOnClickPendingIntent(R.id.layout_root, getUpdateRequestedIntent(context))
+            }.map {
+                views.setDataViewsVisible()
+            }.map {
+                with(views) {
+                    setTextViewText(R.id.today_perf_text, "...")
+                    setTextViewText(R.id.today_absolute_text, "...")
+                    setTextViewText(R.id.total_perf_text, "...")
+                    setTextViewText(R.id.total_absolute_text, "...")
+                }
+            }.map {
+                invalidateViews(context, views)
+            }
         }
-    }
+
+    private val reportReadyCallback: (Context, Intent, RemoteViews) -> IO<Unit> =
+        { context, intent, views ->
+            IO {
+                views.setDataViewsVisible()
+            }.map {
+                intent.getParcelableExtra<Report>(EXTRA_REPORT_KEY)?.let { report ->
+                    with(views) {
+                        setTextViewText(R.id.today_perf_text, report.perfToday.percentString())
+                        setTextViewText(R.id.today_absolute_text, report.absoluteToday.euroString())
+                        setTextViewText(R.id.total_perf_text, report.perfTotal.percentString())
+                        setTextViewText(R.id.total_absolute_text, report.absoluteTotal.euroString())
+                    }
+                }
+            }.flatMap {
+                intent.getSerializableExtra(EXTRA_CHART_DATA_KEY)?.let { chartData ->
+                    @Suppress("UNCHECKED_CAST")
+                    chartData as Array<Float>
+                    with(ChartCanvas(context)) {
+                        val bmp = Bitmap.createBitmap(CHART_WIDTH, CHART_HEIGHT, Bitmap.Config.ARGB_8888)
+                        setBitmap(bmp)
+                        draw(chartData.toList(), CHART_WIDTH, CHART_HEIGHT).map {
+                            bmp
+                        }
+                    }
+                } ?: IO.raiseError<Bitmap>(NullPointerException("No extra chart data key"))
+            }.map {
+                views.setImageViewBitmap(R.id.canvas_view, it)
+            }.map {
+                invalidateViews(context, views)
+            }
+        }
+
+    private val errorCallback: (Context, Intent, RemoteViews) -> IO<Unit> =
+        { context, intent, views ->
+            IO {
+                views.setErrorViewsVisible()
+            }.map {
+                intent.getStringExtra(EXTRA_ERROR_MSG)?.let { message ->
+                    views.setTextViewText(R.id.error_text, message)
+                }
+            }.map {
+                invalidateViews(context, views)
+            }
+        }
+
+    private val unresolvableIntent: (Context, Intent, RemoteViews) -> IO<Unit> =
+        { _, intent, _ ->
+            IO {
+                Timber.w("Received unresolvable intent with action: ${intent.action}")
+            }
+        }
 
     override fun onEnabled(context: Context) = Unit
 
@@ -168,7 +186,7 @@ private fun getUpdateRequestedIntent(context: Context): PendingIntent =
             context,
             PI_REQUEST_UPDATE_ID,
             this,
-            PendingIntent.FLAG_CANCEL_CURRENT
+            PendingIntent.FLAG_UPDATE_CURRENT
         )
     }
 
@@ -191,3 +209,6 @@ private fun RemoteViews.setDataViewsVisible() = kotlin.run {
     setViewVisibility(R.id.today_text, View.VISIBLE)
     setViewVisibility(R.id.total_text, View.VISIBLE)
 }
+
+private const val CHART_WIDTH = 480
+private const val CHART_HEIGHT = 480
