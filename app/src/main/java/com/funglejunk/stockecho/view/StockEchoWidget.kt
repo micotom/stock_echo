@@ -9,14 +9,12 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.view.View
 import android.widget.RemoteViews
+import arrow.core.Either
 import arrow.fx.IO
-import com.funglejunk.stockecho.ANDROID_WIDGET_INTENTS
-import com.funglejunk.stockecho.R
+import com.funglejunk.stockecho.*
 import com.funglejunk.stockecho.data.*
-import com.funglejunk.stockecho.euroString
 import com.funglejunk.stockecho.model.WidgetProviderInteractor
 import com.funglejunk.stockecho.model.WorkerService
-import com.funglejunk.stockecho.percentString
 import kotlinx.serialization.UnsafeSerializationApi
 import timber.log.Timber
 
@@ -48,26 +46,25 @@ class StockEchoWidget : AppWidgetProvider() {
 
         if (intent?.action in ANDROID_WIDGET_INTENTS) return
 
-        if (context == null) {
-            Timber.w("null context in onReceive()")
-            return
-        }
-
-        intent?.action?.let { intentAction ->
-            val callback = selectCallback(intentAction)
-            val views = RemoteViews(context.packageName, R.layout.stock_echo_widget)
-            val action = WidgetProviderInteractor(
-                WorkerService.Impl(context)
-            ).onNewIntent(action = intentAction, callback = callback(context, intent, views))
-            action.unsafeRunAsync { result ->
-                result.fold(
-                    { Timber.e("Error while processing intent (action: $intentAction: $it") },
-                    { Timber.d("intent successfully handled: $intentAction") }
+        Pair(context, intent).isValid().fold(
+            { Timber.w("could not process intent") },
+            { (safeContext, safeIntent, safeAction) ->
+                val callback = selectCallback(safeAction).invoke(
+                    safeContext,
+                    safeIntent,
+                    RemoteViews(safeContext.packageName, R.layout.stock_echo_widget)
                 )
+                WidgetProviderInteractor(
+                    WorkerService.Impl(safeContext)
+                ).onNewIntent(safeAction, callback)
+                    .unsafeRunAsync { result ->
+                        result.fold(
+                            { Timber.e("Error while processing intent (action: $safeAction: $it") },
+                            { Timber.d("intent successfully handled: $safeAction") }
+                        )
+                    }
             }
-        } ?: {
-            Timber.w("intent or action null in onReceive(): $intent")
-        }()
+        )
     }
 
     private val updateRequestCallback: (Context, Intent, RemoteViews) -> IO<Unit> =
@@ -108,7 +105,8 @@ class StockEchoWidget : AppWidgetProvider() {
                     @Suppress("UNCHECKED_CAST")
                     chartData as Array<Float>
                     with(ChartCanvas(context)) {
-                        val bmp = Bitmap.createBitmap(CHART_WIDTH, CHART_HEIGHT, Bitmap.Config.ARGB_8888)
+                        val bmp =
+                            Bitmap.createBitmap(CHART_WIDTH, CHART_HEIGHT, Bitmap.Config.ARGB_8888)
                         setBitmap(bmp)
                         draw(chartData.toList(), CHART_WIDTH, CHART_HEIGHT).map {
                             bmp
@@ -213,3 +211,21 @@ private fun RemoteViews.setDataViewsVisible() = kotlin.run {
 
 private const val CHART_WIDTH = 480
 private const val CHART_HEIGHT = 480
+
+private fun Pair<Context?, Intent?>.isValid(): Either<Unit, Triple<Context, Intent, String>> =
+    kotlin.run {
+        val (context, intent) = this
+        when (context) {
+            null -> {
+                Timber.w("null context in onReceive()")
+                Either.left(Unit)
+            }
+            else -> when (intent != null && intent.action != null) {
+                true -> Either.right(Triple(context, intent, intent.action!!))
+                false -> {
+                    Timber.w("intent or action null in onReceive(): $intent")
+                    Either.left(Unit)
+                }
+            }
+        }
+    }
