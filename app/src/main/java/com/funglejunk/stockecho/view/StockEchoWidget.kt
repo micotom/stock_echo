@@ -44,27 +44,39 @@ class StockEchoWidget : AppWidgetProvider() {
         Timber.d("onReceive(): ${intent?.action}")
         super.onReceive(context, intent)
 
-        if (intent?.action in ANDROID_WIDGET_INTENTS) return
-
-        Pair(context, intent).isValid().fold(
-            { Timber.w("could not process intent") },
-            { (safeContext, safeIntent, safeAction) ->
-                val callback = selectCallback(safeAction).invoke(
-                    safeContext,
-                    safeIntent,
-                    RemoteViews(safeContext.packageName, R.layout.stock_echo_widget)
-                )
-                WidgetProviderInteractor(
-                    WorkerService.Impl(safeContext)
-                ).onNewIntent(safeAction, callback)
-                    .unsafeRunAsync { result ->
-                        result.fold(
-                            { Timber.e("Error while processing intent (action: $safeAction: $it") },
-                            { Timber.d("intent successfully handled: $safeAction") }
-                        )
+        context?.let { safeContext ->
+            val action = when (intent.isAndroidWidgetIntent()) {
+                true -> IO {
+                    val remoteViews =
+                        RemoteViews(safeContext.packageName, R.layout.stock_echo_widget)
+                    remoteViews.refreshClickIntent(safeContext)
+                }
+                false -> intent.validate().fold(
+                    { IO { Timber.w("invalid intent to handle: $intent") } },
+                    { (safeIntent, action) ->
+                        onReceive(safeContext, safeIntent, action)
                     }
+                )
             }
+            action.attempt().unsafeRunAsync { result ->
+                result.fold(
+                    { Timber.e("Error while processing intent (action: $action: $it") },
+                    { Timber.d("intent successfully handled: $action") }
+                )
+
+            }
+        }
+    }
+
+    private fun onReceive(context: Context, intent: Intent, action: String): IO<Unit> {
+        val callback = selectCallback(action).invoke(
+            context,
+            intent,
+            RemoteViews(context.packageName, R.layout.stock_echo_widget)
         )
+        return WidgetProviderInteractor(
+            WorkerService.Impl(context)
+        ).onNewIntent(action, callback)
     }
 
     private val updateRequestCallback: (Context, Intent, RemoteViews) -> IO<Unit> =
@@ -175,6 +187,11 @@ internal fun updateAppWidget(
 }
 
 @UnsafeSerializationApi
+private fun RemoteViews.refreshClickIntent(context: Context) = kotlin.run {
+    setOnClickPendingIntent(R.id.layout_root, getUpdateRequestedIntent(context))
+}
+
+@UnsafeSerializationApi
 private fun getUpdateRequestedIntent(context: Context): PendingIntent =
     with(
         Intent(context, StockEchoWidget::class.java).apply {
@@ -211,21 +228,3 @@ private fun RemoteViews.setDataViewsVisible() = kotlin.run {
 
 private const val CHART_WIDTH = 480
 private const val CHART_HEIGHT = 480
-
-private fun Pair<Context?, Intent?>.isValid(): Either<Unit, Triple<Context, Intent, String>> =
-    kotlin.run {
-        val (context, intent) = this
-        when (context) {
-            null -> {
-                Timber.w("null context in onReceive()")
-                Either.left(Unit)
-            }
-            else -> when (intent != null && intent.action != null) {
-                true -> Either.right(Triple(context, intent, intent.action!!))
-                false -> {
-                    Timber.w("intent or action null in onReceive(): $intent")
-                    Either.left(Unit)
-                }
-            }
-        }
-    }
