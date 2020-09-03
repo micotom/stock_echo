@@ -2,6 +2,7 @@ package com.funglejunk.stockecho
 
 import android.content.Intent
 import arrow.core.Validated
+import arrow.core.extensions.list.applicative.map
 import java.math.BigDecimal
 import java.math.RoundingMode
 
@@ -27,6 +28,10 @@ fun Intent?.validate(): Validated<Unit, Pair<Intent, String>> = this?.action?.le
     Validated.Invalid(Unit)
 }()
 
-fun Intent?.whenNotNullWithAction(f: (Intent, String) -> Unit) = this?.action?.let {
-    f(this, it)
-}
+fun <E, T> List<Validated<E, T>>.wrap(): Validated<E, List<T>> = firstOrNull {
+    it is Validated.Invalid
+}?.let {
+    Validated.Invalid((it as Validated.Invalid).e)
+} ?: {
+    Validated.Valid(this.map { (it as Validated.Valid).a })
+}()

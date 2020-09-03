@@ -5,10 +5,16 @@ import android.content.Intent
 import androidx.core.app.JobIntentService
 import arrow.core.Either
 import arrow.core.NonEmptyList
+import arrow.core.Validated
+import arrow.core.extensions.fx
+import arrow.core.flatMap
 import arrow.fx.IO
 import arrow.fx.extensions.fx
+import arrow.fx.extensions.toIO
 import com.funglejunk.stockecho.data.*
+import com.funglejunk.stockecho.getCurrentTradingDay
 import com.funglejunk.stockecho.repo.SharedPrefs
+import com.funglejunk.stockecho.verifySEOpen
 import kotlinx.serialization.UnsafeSerializationApi
 import timber.log.Timber
 
@@ -16,7 +22,11 @@ import timber.log.Timber
 class UpdateService : JobIntentService() {
 
     private companion object {
-        fun getDataResultIntent(applicationContext: Context, report: Report, chartData: ChartData): Intent =
+        fun getDataResultIntent(
+            applicationContext: Context,
+            report: Report,
+            chartData: ChartData
+        ): Intent =
             Intent(ACTION_REPORT_READY).apply {
                 `package` = applicationContext.packageName
                 putExtra(EXTRA_REPORT_KEY, report)
@@ -36,41 +46,42 @@ class UpdateService : JobIntentService() {
 
     override fun onHandleWork(intent: Intent) {
         IO.fx {
+            val currentTradingDay = getCurrentTradingDay().verifySEOpen()
+            val previousTradingDay = currentTradingDay.minusDays(1).verifySEOpen()
             val reportEither = !effect {
-                interactor.calculatePerformance()
+                interactor.calculatePerformance(currentTradingDay, previousTradingDay)
             }.bind()
             val chartDataEither = !effect {
-                interactor.getChartData()
+                interactor.getChartData(currentTradingDay)
             }.bind()
-            reportEither to chartDataEither
-        }.unsafeRunAsync {
-            val res = it.flattenToPair()
-            res.fold(
-                { error -> onError(Throwable(error::class.java.simpleName)) },
-                { (validatedReport, chartData) ->
-                    validatedReport.fold(
-                        { errorList -> onError(errorList.asSimpleThrowable())},
-                        { report -> onSuccess(report, chartData) }
-                    )
-                }
+            !reportEither.toIO() to !chartDataEither.toIO()
+        }.flatMap {
+            val dataResult = it.flatten()
+            dataResult.fold(
+                { errorList -> onError(errorList.asSimpleThrowable()) },
+                { (report, chartData) -> onSuccess(report, chartData) }
+            )
+        }.attempt().unsafeRunAsync {
+            it.fold(
+                { e -> Timber.e("Could not deliver report: $e") },
+                { Timber.d("update io successfully executed") }
             )
         }
     }
 
-    private fun onError(t: Throwable) {
-        Timber.e("Could not deliver report: $t")
+    private fun onError(t: Throwable): IO<Unit> = IO {
         sendBroadcast(getErrorIntent(applicationContext, t.message ?: "Unknown Error"))
     }
 
-    private fun onSuccess(report: Report, chartData: ChartData) {
+    private fun onSuccess(report: Report, chartData: ChartData): IO<Unit> = IO {
         sendBroadcast(getDataResultIntent(applicationContext, report, chartData))
     }
 
-    private fun <T: Any> NonEmptyList<T>.asSimpleThrowable() = Throwable(
+    private fun <T : Any> NonEmptyList<T>.asSimpleThrowable() = Throwable(
         map { it::class.java.simpleName }.toList().joinToString()
     )
 
-    private fun <E1: Throwable, V1, E2: Throwable, V2> Either<Throwable, Pair<Either<E1, V1>, Either<E2, V2>>>.flattenToPair(): Either<Throwable, Pair<V1, V2>> =
+    private fun <E : Throwable, V1, V2> Either<E, Pair<Either<E, V1>, Either<E, V2>>>.flattenToPair(): Either<Throwable, Pair<V1, V2>> =
         fold(
             {
                 Either.left(it)
@@ -90,6 +101,22 @@ class UpdateService : JobIntentService() {
                             }
                         )
                     }
+                )
+            }
+        )
+
+    private fun <E, V1, V2> Pair<Validated<NonEmptyList<E>, V1>, Validated<NonEmptyList<E>, V2>>.flatten(): Validated<NonEmptyList<E>, Pair<V1, V2>> =
+        first.fold(
+            { e ->
+                second.fold(
+                    { Validated.Invalid(e.plus(it)) },
+                    { Validated.Invalid(e) }
+                )
+            },
+            { v1 ->
+                second.fold(
+                    { e -> Validated.Invalid(e) },
+                    { v2 -> Validated.Valid(v1 to v2) }
                 )
             }
         )

@@ -60,8 +60,8 @@ class StockEchoWidget : AppWidgetProvider() {
             }
             action.attempt().unsafeRunAsync { result ->
                 result.fold(
-                    { Timber.e("Error while processing intent (action: $action: $it") },
-                    { Timber.d("intent successfully handled: $action") }
+                    { Timber.e("Error while processing intent ($it)") },
+                    { Timber.d("intent successfully handled") }
                 )
 
             }

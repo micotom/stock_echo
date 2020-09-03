@@ -4,6 +4,7 @@ import arrow.core.NonEmptyList
 import arrow.core.Option
 import arrow.core.Validated
 import arrow.core.extensions.list.applicative.map
+import arrow.core.nel
 import com.funglejunk.stockecho.bd
 import com.funglejunk.stockecho.data.Euros
 import com.funglejunk.stockecho.data.History
@@ -11,18 +12,10 @@ import com.funglejunk.stockecho.data.Report
 import com.funglejunk.stockecho.isPercentFrom
 import com.funglejunk.stockecho.repo.Allocation
 import com.funglejunk.stockecho.rounded
+import com.funglejunk.stockecho.wrap
 import java.math.BigDecimal
 
 class PerformanceCalculation {
-
-    sealed class CalculationError {
-        object EmptyPrefsData : CalculationError()
-        object IsinNotFoundInRemoteData : CalculationError()
-        object ZeroShares : CalculationError()
-        object TooManyCloseValues : CalculationError()
-        object NoRemoteCloseValue : CalculationError()
-        object ZeroRemoteCloseValue : CalculationError()
-    }
 
     private data class ValueValidationInfo(
         val nrOfShares: Validated<CalculationError, BigDecimal>,
@@ -66,7 +59,7 @@ class PerformanceCalculation {
         pastData: Map<String, History>
     ): Validated<NonEmptyList<CalculationError>, Report> =
         when (allocations.isEmpty()) {
-            true -> Validated.Invalid(NonEmptyList.of(CalculationError.EmptyPrefsData))
+            true -> Validated.Invalid(CalculationError.EmptyPrefsData.nel())
             false -> allocations.map { allocation ->
                 val nrOfSharesValidated = allocation.nrOfShares.asValidatedDivisor()
                 val todayValidated = currentData.getValueAsValidated(allocation.isin).closeValue
@@ -151,13 +144,5 @@ class PerformanceCalculation {
         ) { nrOfShares, todayClose, yesterdayClose ->
             ValueInfo(nrOfShares, Euros(todayClose), Euros(yesterdayClose), onBuy)
         }
-
-    private fun <E, T> List<Validated<E, T>>.wrap(): Validated<E, List<T>> = firstOrNull {
-        it is Validated.Invalid
-    }?.let {
-        Validated.Invalid((it as Validated.Invalid).e)
-    } ?: {
-        Validated.Valid(this.map { (it as Validated.Valid).a })
-    }()
 
 }

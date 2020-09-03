@@ -1,17 +1,12 @@
 package com.funglejunk.stockecho
 
 import arrow.core.*
-import arrow.core.Either.Companion.right
 import arrow.core.extensions.list.applicative.map
 import arrow.core.extensions.nonemptylist.foldable.get
-import arrow.fx.IO
-import com.funglejunk.stockecho.data.Euros
 import com.funglejunk.stockecho.data.History
+import com.funglejunk.stockecho.model.CalculationError
 import com.funglejunk.stockecho.model.PerformanceCalculation
 import com.funglejunk.stockecho.repo.Allocation
-import com.funglejunk.stockecho.repo.Prefs
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.stringify
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -95,7 +90,7 @@ internal class PerformanceCalculationTest {
         res as Validated.Invalid
         assertEquals(1, res.e.size)
         val error = res.e.getOrNull(0)
-        assertTrue(error is PerformanceCalculation.CalculationError.ZeroShares)
+        assertTrue(error is CalculationError.ZeroShares)
     }
 
     @Test
@@ -130,7 +125,7 @@ internal class PerformanceCalculationTest {
         res as Validated.Invalid
         assertEquals(1, res.e.size)
         val error = res.e.getOrNull(0)
-        assertTrue(error is PerformanceCalculation.CalculationError.IsinNotFoundInRemoteData)
+        assertTrue(error is CalculationError.IsinNotFoundInRemoteData)
     }
 
     @Test
@@ -163,7 +158,7 @@ internal class PerformanceCalculationTest {
         res as Validated.Invalid
         assertEquals(1, res.e.size)
         val error = res.e.getOrNull(0)
-        assertTrue(error is PerformanceCalculation.CalculationError.IsinNotFoundInRemoteData)
+        assertTrue(error is CalculationError.IsinNotFoundInRemoteData)
     }
 
     @Test
@@ -245,7 +240,7 @@ internal class PerformanceCalculationTest {
         res as Validated.Invalid
         assertEquals(1, res.e.size)
         val error = res.e.getOrNull(0)
-        assertTrue(error is PerformanceCalculation.CalculationError.TooManyCloseValues)
+        assertTrue(error is CalculationError.TooManyCloseValues)
     }
 
     private fun historyWith(values: List<Pair<String, Double>>) = values.map { (isin, close) ->
