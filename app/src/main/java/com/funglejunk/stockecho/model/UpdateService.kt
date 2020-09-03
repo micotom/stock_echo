@@ -81,30 +81,6 @@ class UpdateService : JobIntentService() {
         map { it::class.java.simpleName }.toList().joinToString()
     )
 
-    private fun <E : Throwable, V1, V2> Either<E, Pair<Either<E, V1>, Either<E, V2>>>.flattenToPair(): Either<Throwable, Pair<V1, V2>> =
-        fold(
-            {
-                Either.left(it)
-            },
-            { (either1, either2) ->
-                either1.fold(
-                    {
-                        Either.left(it)
-                    },
-                    { v1 ->
-                        either2.fold(
-                            {
-                                Either.left(it)
-                            },
-                            { v2 ->
-                                Either.right(v1 to v2)
-                            }
-                        )
-                    }
-                )
-            }
-        )
-
     private fun <E, V1, V2> Pair<Validated<NonEmptyList<E>, V1>, Validated<NonEmptyList<E>, V2>>.flatten(): Validated<NonEmptyList<E>, Pair<V1, V2>> =
         first.fold(
             { e ->
